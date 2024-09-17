@@ -27,11 +27,11 @@ jobs:
 
       - name: Tag Docker image
         run: |
-          docker tag node-todo-app:latest <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+          docker tag node-todo-app:latest 298859898743.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
 
       - name: Push Docker image
         run: |
-          docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+          docker push 298859898743.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
 
       - name: Set up Kubernetes CLI
         uses: azure/setup-kubectl@v1
