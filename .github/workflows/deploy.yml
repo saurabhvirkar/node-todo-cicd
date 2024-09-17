@@ -1,53 +1,48 @@
-name: CI/CD Pipeline
+name: Deploy to EKS
 
 on:
   push:
     branches:
-      - dev
-      - uat
-      - prod
+      - main
 
 jobs:
-  build:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-    - name: Build Docker image
-      run: |
-        docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/node-eks-app:${{ github.sha }} .
+      - name: Build Docker image
+        run: |
+          docker build -t node-todo-app .
 
-    - name: Log in to Amazon ECR
-      run: |
-        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Push Docker image to Amazon ECR
-      run: |
-        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/node-eks-app:${{ github.sha }}
+      - name: Tag Docker image
+        run: |
+          docker tag node-todo-app:latest <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v2
+      - name: Push Docker image
+        run: |
+          docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v1
-      with:
-        version: 'v1.21.0'
+      - name: Set up Kubernetes CLI
+        uses: azure/setup-kubectl@v1
+        with:
+          version: '1.24.0'
 
-    - name: Configure kubectl with Kubeconfig
-      run: |
-        aws eks update-kubeconfig --region us-east-1 --name eks-cluster
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --name eks-cluster --region us-east-1
 
-    - name: Deploy to EKS
-      run: |
-        kubectl apply -f k8s/deployment.yaml
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
