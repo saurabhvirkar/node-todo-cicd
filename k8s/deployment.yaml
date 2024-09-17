@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-todo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node-todo-app
+  template:
+    metadata:
+      labels:
+        app: node-todo-app
+    spec:
+      containers:
+      - name: node-todo-app
+        image: 298859898743.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+        ports:
+        - containerPort: 8080
+
