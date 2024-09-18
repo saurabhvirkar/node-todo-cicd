@@ -1,48 +1,54 @@
-name: Deploy to EKS
+name: CI/CD Pipeline for Node.js on EKS
 
 on:
   push:
     branches:
       - main
+      - dev
 
 jobs:
-  build_and_deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPO_NAME: node-todo-app
+      CLUSTER_NAME: demo
+      DOCKER_IMAGE_TAG: ${{ github.sha }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '12'
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '12'
 
-      - name: Build Docker image
-        run: |
-          docker build -t node-todo-app .
+    - name: Install dependencies
+      run: npm install
 
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.ECR_REPO_NAME }}:${{ env.DOCKER_IMAGE_TAG }} .
+      
+    - name: Log in to Amazon ECR
+      run: |
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-      - name: Tag Docker image
-        run: |
-          docker tag node-todo-app:latest 298859898743.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+    - name: Push Docker image to Amazon ECR
+      run: |
+        docker tag ${{ env.ECR_REPO_NAME }}:${{ env.DOCKER_IMAGE_TAG }} ${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
+        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
 
-      - name: Push Docker image
-        run: |
-          docker push 298859898743.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
 
-      - name: Set up Kubernetes CLI
-        uses: azure/setup-kubectl@v1
-        with:
-          version: '1.30.0'
+    - name: Terraform Init
+      run: terraform init
 
-      - name: Configure kubectl
-        run: |
-          aws eks update-kubeconfig --name eks-cluster --region us-east-1
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
 
-      - name: Deploy to EKS
-        run: |
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
+    - name: Deploy application to EKS
+      run: |
+        kubectl set image deployment/node-app node-app=${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
